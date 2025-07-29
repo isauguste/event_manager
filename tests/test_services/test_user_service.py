@@ -1,5 +1,6 @@
 from builtins import range
 import pytest
+from unittest.mock import AsyncMock, patch
 from sqlalchemy import select
 from app.dependencies import get_settings
 from app.models.user_model import User
@@ -8,14 +9,19 @@ from app.services.user_service import UserService
 pytestmark = pytest.mark.asyncio
 
 # Test creating a user with valid data
-async def test_create_user_with_valid_data(db_session, email_service):
+@patch("app.services.email_service.EmailService.send_user_email", new_callable=AsyncMock)
+async def test_create_user_with_valid_data(mock_send_email, db_session, email_service):
     user_data = {
+        "nickname": "validuser",
         "email": "valid_user@example.com",
         "password": "ValidPassword123!",
+        "first_name": "Valid",
+        "last_name": "User"
     }
     user = await UserService.create(db_session, user_data, email_service)
     assert user is not None
     assert user.email == user_data["email"]
+    mock_send_email.assert_awaited_once()
 
 # Test creating a user with invalid data
 async def test_create_user_with_invalid_data(db_session, email_service):
@@ -90,14 +96,19 @@ async def test_list_users_with_pagination(db_session, users_with_same_role_50_us
     assert users_page_1[0].id != users_page_2[0].id
 
 # Test registering a user with valid data
-async def test_register_user_with_valid_data(db_session, email_service):
+@patch("app.services.email_service.EmailService.send_user_email", new_callable=AsyncMock)
+async def test_register_user_with_valid_data(mock_send_email, db_session, email_service):
     user_data = {
+        "nickname": "registeruser",
         "email": "register_valid_user@example.com",
         "password": "RegisterValid123!",
+        "first_name": "Register",
+        "last_name": "User"
     }
     user = await UserService.register_user(db_session, user_data, email_service)
     assert user is not None
     assert user.email == user_data["email"]
+    mock_send_email.assert_awaited_once()
 
 # Test attempting to register a user with invalid data
 async def test_register_user_with_invalid_data(db_session, email_service):
@@ -144,8 +155,8 @@ async def test_reset_password(db_session, user):
 
 # Test verifying a user's email
 async def test_verify_email_with_token(db_session, user):
-    token = "valid_token_example"  # This should be set in your user setup if it depends on a real token
-    user.verification_token = token  # Simulating setting the token in the database
+    token = "valid_token_example"
+    user.verification_token = token
     await db_session.commit()
     result = await UserService.verify_email_with_token(db_session, user.id, token)
     assert result is True
@@ -156,3 +167,4 @@ async def test_unlock_user_account(db_session, locked_user):
     assert unlocked, "The account should be unlocked"
     refreshed_user = await UserService.get_by_id(db_session, locked_user.id)
     assert not refreshed_user.is_locked, "The user should no longer be locked"
+
